@@ -25,3 +25,6 @@ class Client(object):
         self.add_info_url.close()
         self.opener.close()
         self.cookies.close()
+
+
+client = Client()

@@ -1,29 +1,76 @@
 #!coding:utf-8
+import json
 import urllib2
-import threading
-import xml.etree.ElementTree as ET
+from xml.etree import ElementTree
 import pycurl
 from cStringIO import StringIO
+
+from django.core.cache import cache
+
 from tmweixin.conf import WeixinConf
+from tmweixin.utils.oop import Singleton
+from tmweixin.utils.http import client
+from tmweixin.exception import WeixinError
 
 
-class Singleton(object):
-    """单例模式"""
-    _instance_lock = threading.Lock()
+class PullApi(object):
+    """
+    拉取数据型api
+    """
+    api_url = None
+    success_key = ()
 
-    def __new__(cls, *args, **kwargs):
-        if not hasattr(cls, "_instance"):
-            with cls._instance_lock:
-                if not hasattr(cls, "_instance"):
-                    impl = cls.configure() if hasattr(cls, "configure") else cls
-                    instance = super(Singleton, cls).__new__(impl, *args, **kwargs)
-                    instance.__init__(*args, **kwargs)
-                    cls._instance = instance
-        return cls._instance
+    def __init__(self, *args, **kwargs):
+        self._result = None
+        self._post_data = None
+        self._headers = {}
+
+    def _is_valid(self):
+        return all([k in self._result for k in self.success_key])
+
+    def get_headers(self):
+        return self._headers
+
+    def get_post_data(self):
+        return self._post_data
+
+    def fetch(self):
+        json_str = client.open(self.api_url, self.get_headers(), self.get_post_data).read()
+        client.close()
+        try:
+            self._result = json.loads(json_str)
+            if not self._is_valid():
+                raise ValueError
+        except ValueError:
+            raise WeixinError(u"%s" % json_str)
+
+    def get_result(self):
+        if self._result is None:
+            self.fetch()
+        return self._result or {}
+
+
+class CacheResultMixin(object):
+    """
+    使封装的接口能缓存结果
+    """
+    data_key = None
+    cache_time = 7 * 24 * 60 * 60
+    cache_key = None
+
+    def get_data(self):
+        if not all([self.data_key, self.cache_key, self.cache_time]):
+            raise NotImplementedError(u"cache_time cache_key data_key should be set")
+        data = cache.get(self.cache_key)
+        if data is None:
+            result = self.get_result()
+            cache.set(self.cache_key, result[self.data_key], self.cache_time)
+            return self.get_data()
 
 
 class UrllibClient(object):
     """使用urlib2发送请求"""
+
     def __init__(self):
         self.data = None
 
@@ -39,6 +86,7 @@ class UrllibClient(object):
 
 class CurlClient(object):
     """使用Curl发送请求"""
+
     def __init__(self):
         self.curl = pycurl.Curl()
         self.curl.setopt(pycurl.SSL_VERIFYHOST, False)
@@ -106,7 +154,7 @@ class CommonUtil(object):
     def xml_to_array(cls, xml):
         """将xml转为array"""
         array_data = {}
-        root = ET.fromstring(xml)
+        root = ElementTree.fromstring(xml)
         for child in root:
             value = child.text
             array_data[child.tag] = value
@@ -127,7 +175,7 @@ class WeixinBase(CommonUtil):
     """请求型接口的基类"""
     required = ()  # 规定哪些参数必须提供
     response = None  # 微信返回的响应
-    url = None       # 接口链接
+    url = None  # 接口链接
     curl_timeout = None  # curl超时时间
 
     def __init__(self, factory, **kwargs):
