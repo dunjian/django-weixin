@@ -6,6 +6,7 @@ __author__ = 'zkchen'
 
 from tmweixin.conf import wx_conf
 from tmweixin.api.base import PullApi, CacheResultMixin
+from tmweixin.api.base import LazyUrl
 
 
 ACCESS_TOKEN_CACHE_KEY = "_weixin_access"
@@ -32,7 +33,8 @@ class ServerList(CacheResultMixin, PullApi):
     data_key = "ip_list"
 
     success_key = (data_key,)
-    api_url = "https://api.weixin.qq.com/cgi-bin/getcallbackip?access_token=%s" % AccessToken().get_access_token()
+    api_url = LazyUrl("https://api.weixin.qq.com/cgi-bin/getcallbackip?access_token=%s",
+                      AccessToken().get_access_token)
 
     def get_ip_list(self):
         return self.get_data()

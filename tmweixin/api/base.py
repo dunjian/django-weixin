@@ -13,12 +13,25 @@ from tmweixin.utils.http import client
 from tmweixin.exception import WeixinError
 
 
+class LazyUrl(object):
+    def __init__(self, url, func, *args, **kwargs):
+        self._url = url
+        self._func = func
+        self._args = args
+        self._kwargs = kwargs
+        if not callable(self._func):
+            raise ValueError(u"func must be callable")
+
+    def __str__(self):
+        return self._url % self._func(*self._args, **self._kwargs)
+
+
 class PullApi(object):
     """
     拉取数据型api
     """
     api_url = None
-    success_key = ()
+    success_key = None
 
     def __init__(self, *args, **kwargs):
         self._result = None
@@ -34,19 +47,20 @@ class PullApi(object):
     def get_post_data(self):
         return self._post_data
 
-    def fetch(self):
-        json_str = client.open(self.api_url, self.get_headers(), self.get_post_data).read()
+    def _fetch(self):
+        json_str = client.open(str(self.api_url), self.get_headers(), self.get_post_data()).read()
         client.close()
         try:
             self._result = json.loads(json_str)
             if not self._is_valid():
+                self._result = None
                 raise ValueError
         except ValueError:
             raise WeixinError(u"%s" % json_str)
 
     def get_result(self):
         if self._result is None:
-            self.fetch()
+            self._fetch()
         return self._result or {}
 
 
@@ -58,14 +72,29 @@ class CacheResultMixin(object):
     cache_time = 7 * 24 * 60 * 60
     cache_key = None
 
-    def get_data(self):
+    def get_data(self, force_update=False):
         if not all([self.data_key, self.cache_key, self.cache_time]):
             raise NotImplementedError(u"cache_time cache_key data_key should be set")
         data = cache.get(self.cache_key)
-        if data is None:
+        if data is None or force_update:
             result = self.get_result()
             cache.set(self.cache_key, result[self.data_key], self.cache_time)
             return self.get_data()
+        else:
+            return data
+
+
+class CacheResultPullApi(CacheResultMixin, PullApi):
+    """
+    从微信服务器抓取结果并缓存
+    """
+    def __init__(self, api_url, data_key, cache_time, cache_key, success_key, *args, **kwargs):
+        super(CacheResultPullApi, self).__init__(*args, **kwargs)
+        self.api_url = api_url
+        self.data_key = data_key
+        self.cache_key = cache_key
+        self.cache_time = cache_time
+        self.success_key = success_key
 
 
 class UrllibClient(object):

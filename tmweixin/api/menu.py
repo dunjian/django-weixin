@@ -1,5 +1,6 @@
 #!coding=utf-8
-from tmweixin.api.credential import get_access_token
+from tmweixin.api.credential import AccessToken
+from tmweixin.api.base import LazyUrl
 from tmweixin.api.common import WEIXIN_RESPONSE_CODE
 from tmweixin.models import WMenu
 import json
@@ -10,8 +11,7 @@ def send_menu():
     """
     更新微信菜单
     """
-    access_token = get_access_token()
-    post_url = "https://api.weixin.qq.com/cgi-bin/menu/create?access_token=" + access_token
+    post_url = "https://api.weixin.qq.com/cgi-bin/menu/create?access_token=" + AccessToken().get_access_token()
     
     def make_click(node):
         return {

@@ -65,6 +65,15 @@ DATABASES = {
     }
 }
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        # default 60 minutes
+        'TIMEOUT': 60 * 60,
+        'LOCATION': 'my_cache',
+    },
+}
+
 # Internationalization
 # https://docs.djangoproject.com/en/1.7/topics/i18n/
 
