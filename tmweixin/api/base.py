@@ -10,91 +10,75 @@ from django.core.cache import cache
 from tmweixin.conf import WeixinConf
 from tmweixin.utils.oop import Singleton
 from tmweixin.utils.http import client
-from tmweixin.exception import WeixinError
+from tmweixin.exception import WeixinError, WeixinFault
+
+ERROR_CODE_TOKEN = "errcode"
 
 
-class LazyUrl(object):
-    def __init__(self, url, func, *args, **kwargs):
-        self._url = url
-        self._func = func
+class LazyString(object):
+    def __init__(self, source, *args, **kwargs):
+        self._source = source
         self._args = args
         self._kwargs = kwargs
-        if not callable(self._func):
-            raise ValueError(u"func must be callable")
 
     def __str__(self):
-        return self._url % self._func(*self._args, **self._kwargs)
+        return (self._source % tuple((s() if callable(s) else s for s in self._args))).format(**self._kwargs)
 
 
-class PullApi(object):
+class SimpleApi(object):
     """
     拉取数据型api
     """
     api_url = None
-    success_key = None
+    data_key = None
 
-    def __init__(self, *args, **kwargs):
-        self._result = None
-        self._post_data = None
-        self._headers = {}
+    def __init__(self, api_url, data_key=None, headers=None, post_data=None):
+        self.api_url = api_url
+        self.data_key = data_key
+        self.headers = headers
+        self.post_data = post_data
 
-    def _is_valid(self):
-        return all([k in self._result for k in self.success_key])
-
-    def get_headers(self):
-        return self._headers
-
-    def get_post_data(self):
-        return self._post_data
-
-    def _fetch(self):
-        json_str = client.open(str(self.api_url), self.get_headers(), self.get_post_data()).read()
+    def _fetch(self, headers=None, post_data=None):
+        json_str = client.open(str(self.api_url), headers or self.headers, post_data or self.post_data).read()
         client.close()
         try:
-            self._result = json.loads(json_str)
-            if not self._is_valid():
-                self._result = None
-                raise ValueError
+            result = json.loads(json_str)
         except ValueError:
-            raise WeixinError(u"%s" % json_str)
+            raise WeixinFault(u"%s" % json_str)
+        err_code = result.get(ERROR_CODE_TOKEN)
+        if err_code == 0 or err_code is None:
+            self._result = result
+            return self._result
+        else:
+            raise WeixinError(err_code)
 
-    def get_result(self):
-        if self._result is None:
-            self._fetch()
-        return self._result or {}
+    def get_data(self):
+        result = self._fetch()
+        if self.data_key is None:
+            return result
+        return result[self.data_key]
 
 
-class CacheResultMixin(object):
+class CacheResultApi(SimpleApi):
     """
     使封装的接口能缓存结果
     """
-    data_key = None
-    cache_time = 7 * 24 * 60 * 60
+    cache_time = None
     cache_key = None
 
     def get_data(self, force_update=False):
-        if not all([self.data_key, self.cache_key, self.cache_time]):
-            raise NotImplementedError(u"cache_time cache_key data_key should be set")
+        """
+        @:param force_update:强制更新缓存
+        """
+        if not all([self.cache_key, self.cache_time]):
+            raise NotImplementedError(u"cache_time cache_key should be set")
         data = cache.get(self.cache_key)
         if data is None or force_update:
-            result = self.get_result()
-            cache.set(self.cache_key, result[self.data_key], self.cache_time)
+            result = super(CacheResultApi, self).get_data()
+            cache.set(self.cache_key, result, self.cache_time)
             return self.get_data()
         else:
             return data
-
-
-class CacheResultPullApi(CacheResultMixin, PullApi):
-    """
-    从微信服务器抓取结果并缓存
-    """
-    def __init__(self, api_url, data_key, cache_time, cache_key, success_key, *args, **kwargs):
-        super(CacheResultPullApi, self).__init__(*args, **kwargs)
-        self.api_url = api_url
-        self.data_key = data_key
-        self.cache_key = cache_key
-        self.cache_time = cache_time
-        self.success_key = success_key
 
 
 class UrllibClient(object):

@@ -1,6 +1,6 @@
 #!coding=utf-8
 from tmweixin.api.credential import AccessToken
-from tmweixin.api.base import LazyUrl
+from tmweixin.api.base import LazyString
 from tmweixin.api.common import WEIXIN_RESPONSE_CODE
 from tmweixin.models import WMenu
 import json
