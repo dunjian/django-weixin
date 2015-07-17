@@ -19,12 +19,10 @@ class AccessToken(CacheResultApi, SimpleApi):
     cache_time = 7000
     data_key = "access_token"
 
-    success_key = (data_key, )
-
     def __init__(self):
         api_url = 'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s' \
                   % (wx_conf.app_id, wx_conf.app_secret)
-        super(AccessToken, self).__init__(api_url=api_url)
+        super(AccessToken, self).__init__(api_url=api_url, data_key=self.data_key)
 
     def get_access_token(self):
         return self.get_data()

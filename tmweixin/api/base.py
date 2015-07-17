@@ -10,7 +10,7 @@ from django.core.cache import cache
 from tmweixin.conf import WeixinConf
 from tmweixin.utils.oop import Singleton
 from tmweixin.utils.http import client
-from tmweixin.exception import WeixinError, WeixinFault
+from tmweixin.exception import WeixinError, WeixinFault, ClientError
 
 ERROR_CODE_TOKEN = "errcode"
 
@@ -27,15 +27,16 @@ class LazyString(object):
 
 class SimpleApi(object):
     """
-    拉取数据型api
+    所有api的基类
     """
     api_url = None
     data_key = None
+    headers = {}
 
-    def __init__(self, api_url, data_key=None, headers=None, post_data=None):
-        self.api_url = api_url
-        self.data_key = data_key
-        self.headers = headers
+    def __init__(self, api_url=None, data_key=None, headers=None, post_data=None):
+        self.api_url = api_url or self.api_url
+        self.data_key = data_key or self.data_key
+        self.headers = headers or self.headers
         self.post_data = post_data
 
     def _fetch(self, headers=None, post_data=None):
@@ -52,11 +53,15 @@ class SimpleApi(object):
         else:
             raise WeixinError(err_code)
 
-    def get_data(self):
-        result = self._fetch()
+    def get_data(self, *args, **kwargs):
+        result = self._fetch(*args, **kwargs)
         if self.data_key is None:
             return result
-        return result[self.data_key]
+        try:
+            return result[self.data_key]
+        except KeyError:
+            # 服务器正常返回但找不到期望的关键值 可能是代码逻辑错误
+            raise ClientError(u"%s not in result weixin server return:%s" % (str(self.data_key), str(result)))
 
 
 class CacheResultApi(SimpleApi):
@@ -245,5 +250,4 @@ class WeixinBase(CommonUtil):
         self.post_xml()
         result = self.xml_to_array(self.response)
         return result
-
 
