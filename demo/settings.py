@@ -38,6 +38,7 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'demo',
     'tmweixin',
+    'tmkit.track',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -48,7 +49,7 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'track.middleware.TrackingMiddleware',
+    'tmkit.track.middleware.TrackingMiddleware',
 )
 
 ROOT_URLCONF = 'demo.urls'

@@ -11,7 +11,7 @@ from django.utils.safestring import mark_safe
 from django.core.urlresolvers import reverse_lazy
 from django.utils import html
 
-from track.models import Entry
+from .models import Entry
 
 
 class EntryAdmin(ModelAdmin):
