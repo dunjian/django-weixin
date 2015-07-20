@@ -3,5 +3,6 @@ __author__ = 'akun'
 from django.apps import AppConfig
 
 
-class RumtimeConfAppConf(AppConfig):
+class RuntimeConfAppConf(AppConfig):
+    name = "tmkit.runtime_conf"
     verbose_name = u"运行时配置"
